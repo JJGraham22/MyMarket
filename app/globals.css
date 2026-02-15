@@ -1,0 +1,271 @@
+/* My Market logo palette: stall greens, awning red, produce orange */
+:root {
+  /* Fresh greens (lettuce, leaves, palm fronds) */
+  --green-deep: #1a5c0f;
+  --green-mid: #2d8a1f;
+  --green-soft: #44b336;
+  --green-pale: #8fdc72;
+  --green-bright: #a8f090;
+  --green-bg: rgba(45, 138, 31, 0.2);
+  /* Awning & produce red */
+  --market-red: #c53c3c;
+  --market-red-soft: #e06565;
+  --market-red-bg: rgba(197, 60, 60, 0.15);
+  /* Carrots, oranges */
+  --market-orange: #e07c2e;
+  --market-orange-soft: #f0a050;
+  --market-orange-bg: rgba(224, 124, 46, 0.12);
+  /* Wood & palm trunks */
+  --brown-deep: #3d3229;
+  --brown-mid: #5c4033;
+  --brown-warm: #b8860b;
+  --brown-soft: #a08968;
+  --brown-bg: rgba(92, 64, 51, 0.2);
+  --cream: #f8f4ec;
+  --cream-muted: #b8ad9e;
+  --ground: #1a1814;
+  --ground-elevated: #252219;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--ground);
+  color: var(--cream);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+/* Big headings + lots of whitespace */
+.page-heading {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--cream);
+}
+
+.page-subheading {
+  font-size: 1.125rem;
+  color: var(--cream-muted);
+  margin-top: 0.5rem;
+  max-width: 42ch;
+}
+
+.section-heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--cream);
+}
+
+/* Primary action: organic green (consistent across app) */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  cursor: pointer;
+  background: var(--green-mid);
+  color: var(--cream);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  transition: background 0.2s ease, filter 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: var(--green-soft);
+  filter: brightness(1.1);
+  box-shadow: 0 0 0 2px var(--green-bg);
+}
+.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--green-pale);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* Secondary / outline: brown */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--brown-soft);
+  background: transparent;
+  color: var(--cream-muted);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--brown-warm);
+  background: var(--brown-bg);
+  color: var(--cream);
+}
+
+/* Cards: warm, 2–3 per page max feel */
+.card {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(168, 137, 104, 0.25);
+  background: var(--ground-elevated);
+  padding: 1.5rem;
+}
+
+.card-organic {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(168, 137, 104, 0.2);
+  background: var(--ground-elevated);
+}
+
+.input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(168, 137, 104, 0.35);
+  background: rgba(37, 34, 25, 0.8);
+  color: var(--cream);
+  padding: 0.6rem 1rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input:focus {
+  border-color: var(--green-soft);
+  box-shadow: 0 0 0 2px var(--green-bg);
+}
+
+.pill {
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.85rem;
+  border: 1px solid rgba(168, 137, 104, 0.4);
+  background: var(--brown-bg);
+  color: var(--cream-muted);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.pill-active {
+  border-color: var(--green-soft);
+  background: var(--green-bg);
+  color: var(--green-pale);
+}
+
+.badge-soft {
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  background: var(--green-bg);
+  color: var(--green-pale);
+}
+
+/* Clickable card: looks like a button, use on Link wrappers */
+.card-btn {
+  cursor: pointer;
+  border: 2px solid var(--green-soft);
+  background: linear-gradient(180deg, var(--ground-elevated) 0%, rgba(45, 138, 31, 0.06) 100%);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.card-btn:hover {
+  border-color: var(--green-pale);
+  background: linear-gradient(180deg, var(--ground-elevated) 0%, var(--green-bg) 100%);
+  box-shadow: 0 0 0 2px var(--green-bg);
+  transform: translateY(-1px);
+}
+.card-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--green-pale);
+}
+.card-btn-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  background: var(--green-mid);
+  color: var(--cream);
+  border: none;
+  transition: background 0.2s ease, filter 0.2s ease;
+}
+.card-btn:hover .card-btn-cta {
+  background: var(--green-soft);
+  filter: brightness(1.05);
+}
+
+/* Inline link styled as a small button */
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  background: var(--green-mid);
+  color: var(--cream);
+  text-decoration: none;
+  transition: background 0.2s ease, filter 0.2s ease;
+}
+.link-button:hover {
+  background: var(--green-soft);
+  color: var(--cream);
+  filter: brightness(1.05);
+}
+
+/* Small destructive action */
+.btn-remove {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(185, 28, 28, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(185, 28, 28, 0.4);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.btn-remove:hover {
+  background: rgba(185, 28, 28, 0.35);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.grid-2 {
+  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.4fr);
+}
+
+@media (max-width: 900px) {
+  .grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
