@@ -1,5 +1,5 @@
 import { SellerCheckoutClient } from "./SellerCheckoutClient";
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 
 type SellerSessionRow = {
   id: string;
@@ -23,7 +23,7 @@ async function getSellerSessionsWithLabels() {
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   // For now, we look up sessions using a dev seller id so the page
   // works before auth wiring is in place.

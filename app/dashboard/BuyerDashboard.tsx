@@ -4,12 +4,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabaseClient";
+import { PageHeader, Card, CardCTA, EmptyState, Badge, Button, Skeleton } from "@/app/components/ui";
 
 interface Order {
   id: string;
   status: string;
   total_cents: number;
   created_at: string;
+}
+
+interface SavedMarket {
+  market_id: string;
+  markets: { id: string; name: string; city: string | null; suburb: string | null } | null;
+}
+
+interface SavedSeller {
+  seller_id: string;
+  profiles: { id: string; display_name: string | null } | null;
 }
 
 export function BuyerDashboard({
@@ -21,7 +32,10 @@ export function BuyerDashboard({
 }) {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [savedMarkets, setSavedMarkets] = useState<SavedMarket[]>([]);
+  const [savedSellers, setSavedSellers] = useState<SavedSeller[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savedLoading, setSavedLoading] = useState(true);
   const [switchingToSeller, setSwitchingToSeller] = useState(false);
 
   useEffect(() => {
@@ -42,6 +56,26 @@ export function BuyerDashboard({
     fetchOrders();
   }, [userId]);
 
+  useEffect(() => {
+    async function fetchSaved() {
+      const supabase = createBrowserSupabaseClient();
+      const [marketsRes, sellersRes] = await Promise.all([
+        supabase
+          .from("saved_markets")
+          .select("market_id, markets(id, name, city, suburb)")
+          .eq("user_id", userId),
+        supabase
+          .from("saved_sellers")
+          .select("seller_id, profiles(id, display_name)")
+          .eq("user_id", userId),
+      ]);
+      setSavedMarkets((marketsRes.data ?? []) as SavedMarket[]);
+      setSavedSellers((sellersRes.data ?? []) as SavedSeller[]);
+      setSavedLoading(false);
+    }
+    fetchSaved();
+  }, [userId]);
+
   async function switchToSeller() {
     setSwitchingToSeller(true);
     const supabase = createBrowserSupabaseClient();
@@ -54,78 +88,133 @@ export function BuyerDashboard({
 
   return (
     <div className="space-y-14">
-      <header className="space-y-3">
-        <h1 className="page-heading">Hey, {greeting}!</h1>
-        <p className="page-subheading">
-          Discover local markets, browse fresh produce, and track your orders.
-        </p>
-      </header>
+      <PageHeader
+        title={`Hey, ${greeting}!`}
+        subtitle="Discover local markets, browse fresh produce, and track your orders."
+      />
 
-      <section className="rounded-xl border-2 border-[var(--green-soft)]/40 bg-[var(--green-bg)]/30 p-5">
+      <Card padding="md" className="border-2 border-[var(--green-soft)]/40 bg-[var(--green-bg)]/30">
         <p className="text-sm text-[var(--cream)]">
           Do you sell at markets? Switch to a seller account to add your products and use Seller Checkout.
         </p>
-        <button
+        <Button
           type="button"
           onClick={switchToSeller}
           disabled={switchingToSeller}
-          className="btn-primary mt-4"
+          className="mt-4"
         >
           {switchingToSeller ? "Switching…" : "Switch to seller account"}
-        </button>
+        </Button>
+      </Card>
+
+      <section className="grid gap-6 sm:grid-cols-2">
+        <Link href="/markets" className="flex flex-col">
+          <Card variant="clickable" padding="md" className="flex flex-1 flex-col justify-between">
+            <div>
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl bg-[var(--green-bg)]">
+                🏪
+              </div>
+              <h2 className="section-heading text-[var(--cream)]">Find markets</h2>
+              <p className="mt-2 text-sm text-[var(--cream-muted)]">
+                Browse local farmers markets near you.
+              </p>
+            </div>
+            <CardCTA>Explore markets &rarr;</CardCTA>
+          </Card>
+        </Link>
+        <Link href="/orders" className="flex flex-col">
+          <Card variant="clickable" padding="md" className="flex flex-1 flex-col justify-between">
+            <div>
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl bg-[var(--brown-bg)]">
+                📦
+              </div>
+              <h2 className="section-heading text-[var(--cream)]">My orders</h2>
+              <p className="mt-2 text-sm text-[var(--cream-muted)]">
+                See your order history and status.
+              </p>
+            </div>
+            <CardCTA>View orders &rarr;</CardCTA>
+          </Card>
+        </Link>
       </section>
 
       <section className="grid gap-6 sm:grid-cols-2">
-        <Link
-          href="/markets"
-          className="card-organic card-btn flex flex-col justify-between p-6"
-        >
-          <div>
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl" style={{ background: "var(--green-bg)" }}>
-              🏪
-            </div>
-            <h2 className="section-heading text-[var(--cream)]">
-              Find markets
-            </h2>
-            <p className="mt-2 text-sm text-[var(--cream-muted)]">
-              Browse local farmers markets near you.
-            </p>
-          </div>
-          <span className="card-btn-cta">
-            Explore markets &rarr;
-          </span>
-        </Link>
-        <div className="card-organic flex flex-col justify-between p-6 opacity-90">
-          <div>
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl" style={{ background: "var(--brown-bg)" }}>
-              📦
-            </div>
-            <h2 className="section-heading">My orders</h2>
-            <p className="mt-2 text-sm text-[var(--cream-muted)]">
-              See your order history below.
-            </p>
-          </div>
+        <div>
+          <h2 className="section-heading mb-4">Saved markets</h2>
+          {savedLoading ? (
+            <Skeleton lines={3} />
+          ) : savedMarkets.length === 0 ? (
+            <p className="text-sm text-[var(--cream-muted)]">No saved markets yet. Save markets from their pages to see them here.</p>
+          ) : (
+              <ul className="space-y-2">
+                {savedMarkets.map((sm) => {
+                  const m = sm.markets;
+                  const id = m?.id ?? sm.market_id;
+                  const name = m?.name ?? "Market";
+                  const loc = [m?.suburb, m?.city].filter(Boolean).join(", ");
+                  return (
+                    <li key={sm.market_id}>
+                      <Link
+                        href={"/markets/" + id}
+                        className="block rounded-lg border border-[var(--brown-soft)]/30 bg-[var(--brown-bg)]/30 px-4 py-3 text-sm transition-colors hover:border-[var(--green-soft)]/40 hover:bg-[var(--green-bg)]/20"
+                      >
+                        <span className="font-medium text-[var(--cream)]">{name}</span>
+                        {loc && <span className="ml-2 text-[var(--cream-muted)]">· {loc}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+          )}
+        </div>
+        <div>
+          <h2 className="section-heading mb-4">Saved sellers</h2>
+          {savedLoading ? (
+            <Skeleton lines={3} />
+          ) : savedSellers.length === 0 ? (
+            <p className="text-sm text-[var(--cream-muted)]">No saved sellers yet. Save sellers from their profiles to see them here.</p>
+          ) : (
+              <ul className="space-y-2">
+                {savedSellers.map((ss) => {
+                  const p = ss.profiles;
+                  const id = p?.id ?? ss.seller_id;
+                  const name = p?.display_name ?? "Seller";
+                  return (
+                    <li key={ss.seller_id}>
+                      <Link
+                        href={"/sellers/" + id}
+                        className="block rounded-lg border border-[var(--brown-soft)]/30 bg-[var(--brown-bg)]/30 px-4 py-3 text-sm transition-colors hover:border-[var(--green-soft)]/40 hover:bg-[var(--green-bg)]/20"
+                      >
+                        <span className="font-medium text-[var(--cream)]">{name}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+          )}
         </div>
       </section>
 
       <section>
         <h2 className="section-heading mb-4">My orders</h2>
         {loading ? (
-          <p className="text-sm text-[var(--cream-muted)]">Loading orders…</p>
+          <Skeleton lines={3} />
         ) : orders.length === 0 ? (
-          <div className="card-organic px-6 py-10 text-center">
-            <p className="text-sm text-[var(--cream-muted)]">
-              You haven&apos;t placed any orders yet. Head to{" "}
-              <Link href="/markets" className="link-button">
-                Markets
-              </Link>{" "}
-              to get started.
-            </p>
-          </div>
+          <EmptyState
+            message={
+              <>
+                You haven&apos;t placed any orders yet. Head to{" "}
+                <Link href="/markets" className="link-button">
+                  Markets
+                </Link>{" "}
+                to get started.
+              </>
+            }
+          />
         ) : (
-          <div className="card-organic overflow-hidden p-0">
+          <Card padding="none" className="overflow-hidden">
             <table className="w-full text-left text-sm">
-              <thead className="border-b text-xs uppercase tracking-wider text-[var(--cream-muted)]" style={{ borderColor: "rgba(168,137,104,0.2)", background: "var(--brown-bg)" }}>
+              <thead className="table-head">
                 <tr>
                   <th className="px-4 py-3">Order</th>
                   <th className="px-4 py-3">Status</th>
@@ -144,7 +233,7 @@ export function BuyerDashboard({
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         )}
       </section>
     </div>
@@ -152,13 +241,6 @@ export function BuyerDashboard({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const isGood = status === "PAID" || status === "COMPLETED";
-  return (
-    <span
-      className="inline-block rounded-full px-2 py-0.5 text-[0.65rem] font-medium"
-      style={isGood ? { background: "var(--green-bg)", color: "var(--green-pale)", border: "1px solid rgba(107,158,58,0.3)" } : { background: "var(--brown-bg)", color: "var(--cream-muted)" }}
-    >
-      {status.replace("_", " ")}
-    </span>
-  );
+  const variant = status === "PAID" || status === "COMPLETED" ? "success" : "neutral";
+  return <Badge variant={variant}>{status.replace("_", " ")}</Badge>;
 }

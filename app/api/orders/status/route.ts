@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 
 /**
  * GET /api/orders/status?orderId=<uuid>
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "orderId is required." }, { status: 400 });
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   const { data, error } = await supabase
     .from("orders")

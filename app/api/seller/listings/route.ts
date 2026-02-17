@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "sellerSessionId is required" }, { status: 400 });
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   let query = supabase
     .from("listings")

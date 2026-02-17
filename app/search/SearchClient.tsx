@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { PageHeader, Card, EmptyState } from "@/app/components/ui";
 
 interface Market {
   id: string;
@@ -63,18 +64,17 @@ export function SearchClient() {
 
   return (
     <div className="space-y-14">
-      <header className="space-y-6 text-center">
-        <h1 className="page-heading">Find markets &amp; sellers</h1>
-        <p className="page-subheading mx-auto">
-          Search by name, suburb, product, or keyword.
-        </p>
-      </header>
+      <PageHeader
+        title="Find markets &amp; sellers"
+        subtitle="Search by name, suburb, product, or keyword."
+        className="text-center"
+      />
 
-      <section className="card-organic p-6 sm:p-8">
+      <Card padding="lg" className="p-6 sm:p-8">
         <div className="space-y-4">
           <div className="relative">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 opacity-60" style={{ color: "var(--cream-muted)" }}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 opacity-60 text-[var(--cream-muted)]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-[3.5px] w-[3.5px]">
                 <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
               </svg>
             </span>
@@ -84,12 +84,12 @@ export function SearchClient() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search markets, sellers, products…"
-              className="input w-full py-4 pl-12 pr-4 text-base"
+              className="input w-full py-4 pl-6 pr-4 text-base"
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="opacity-60" style={{ color: "var(--cream-muted)" }}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+            <span className="opacity-60 text-[var(--cream-muted)]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-[3px] w-[3px]">
                 <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clipRule="evenodd" />
               </svg>
             </span>
@@ -102,16 +102,14 @@ export function SearchClient() {
             />
           </div>
         </div>
-      </section>
+      </Card>
 
       {loading && (
         <p className="text-center text-sm text-[var(--cream-muted)]">Searching…</p>
       )}
 
       {!loading && searched && totalResults === 0 && (
-        <div className="card-organic px-6 py-12 text-center">
-          <p className="text-sm text-[var(--cream-muted)]">No results found. Try a different search term.</p>
-        </div>
+        <EmptyState message="No results found. Try a different search term." />
       )}
 
       {!loading && markets.length > 0 && (

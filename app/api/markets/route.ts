@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const city = searchParams.get("city")?.trim() ?? "";
   const openToday = searchParams.get("openToday") === "true";
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   // Build base query
   let query = supabase

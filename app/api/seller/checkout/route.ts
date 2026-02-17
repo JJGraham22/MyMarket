@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 
 type CheckoutItem = {
   listingId: string;
@@ -7,7 +7,7 @@ type CheckoutItem = {
 };
 
 export async function POST(req: NextRequest) {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   let body: { sellerSessionId?: string; items?: CheckoutItem[]; customerId?: string | null };
   try {

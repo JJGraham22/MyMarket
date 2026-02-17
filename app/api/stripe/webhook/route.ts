@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe, stripeWebhookSecret } from "@/lib/stripe";
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 
 // Next.js App Router: disable body parsing so we get the raw body for
 // Stripe signature verification.
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   // ── 2. Handle events ────────────────────────────────────────────────────
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   switch (event.type) {
     case "checkout.session.completed": {
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
 async function handleCheckoutSessionCompleted(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
+  supabase: ReturnType<typeof createServiceRoleSupabaseClient>,
   session: Stripe.Checkout.Session
 ) {
   const orderId =
@@ -104,7 +104,7 @@ async function handleCheckoutSessionCompleted(
 }
 
 async function handlePaymentIntentSucceeded(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
+  supabase: ReturnType<typeof createServiceRoleSupabaseClient>,
   paymentIntent: Stripe.PaymentIntent
 ) {
   const orderId = paymentIntent.metadata?.orderId ?? null;
@@ -131,7 +131,7 @@ async function handlePaymentIntentSucceeded(
 // ── Shared helper ────────────────────────────────────────────────────────────
 
 async function markOrderPaid(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
+  supabase: ReturnType<typeof createServiceRoleSupabaseClient>,
   orderId: string,
   currentStatus: string,
   stripePaymentIntentId: string | null

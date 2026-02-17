@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 import { OrderStatusPoller } from "./OrderStatusPoller";
 import Link from "next/link";
 
@@ -28,7 +28,7 @@ export default async function PaySuccessPage({
   }
 
   // Load the order so we can show initial state and pass to the poller
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
   const { data } = await supabase
     .from("orders")
     .select("id, status, total_cents, paid_at")

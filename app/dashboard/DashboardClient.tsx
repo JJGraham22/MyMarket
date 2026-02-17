@@ -29,7 +29,7 @@ export function DashboardClient() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        router.replace("/auth");
+        router.replace("/auth?next=" + encodeURIComponent("/dashboard"));
         return;
       }
 
@@ -62,7 +62,7 @@ export function DashboardClient() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="text-sm text-slate-400">Loading dashboard…</div>
+        <div className="text-sm text-[var(--cream-muted)]">Loading dashboard…</div>
       </div>
     );
   }

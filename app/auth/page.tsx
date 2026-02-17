@@ -1,21 +1,28 @@
+import { PageHeader, Card } from "@/app/components/ui";
 import { AuthForm } from "./AuthForm";
 
 export const metadata = {
   title: "Sign in — My Market",
 };
 
-export default function AuthPage() {
+interface AuthPageProps {
+  searchParams: Promise<{ next?: string }> | { next?: string };
+}
+
+export default async function AuthPage({ searchParams }: AuthPageProps) {
+  const params = await Promise.resolve(searchParams);
+  const next = typeof params.next === "string" ? params.next : undefined;
+
   return (
     <div className="mx-auto max-w-md space-y-10 py-8">
-      <header className="space-y-3 text-center">
-        <h1 className="page-heading">Welcome back</h1>
-        <p className="page-subheading mx-auto">
-          Sign in or create an account to get started.
-        </p>
-      </header>
-      <div className="card-organic p-6 sm:p-8">
-        <AuthForm />
-      </div>
+      <PageHeader
+        title="Welcome back"
+        subtitle="Sign in or create an account to get started."
+        className="text-center"
+      />
+      <Card padding="lg" className="p-6 sm:p-8">
+        <AuthForm next={next} />
+      </Card>
     </div>
   );
 }

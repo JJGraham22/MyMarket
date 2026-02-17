@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabaseClient";
+import { PageHeader, Card, CardCTA, EmptyState, Badge, Button, Skeleton } from "@/app/components/ui";
 import { ProfileSettings } from "./ProfileSettings";
 import { MyProducts } from "./MyProducts";
 
@@ -55,55 +56,43 @@ export function SellerDashboard({
 
   return (
     <div className="space-y-14">
-      <header className="space-y-3">
-        <h1 className="page-heading">Welcome back, {greeting}</h1>
-        <p className="page-subheading">
-          Manage your market stall, inventory, and orders.
-        </p>
-      </header>
+      <PageHeader
+        title={`Welcome back, ${greeting}`}
+        subtitle="Manage your market stall, inventory, and orders."
+      />
 
       <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <Link
-          href="/seller/checkout"
-          className="card-organic card-btn flex flex-col justify-between p-6"
-        >
-          <div>
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl" style={{ background: "var(--green-bg)" }}>
-              🛒
+        <Link href="/seller/checkout" className="flex flex-col">
+          <Card variant="clickable" padding="md" className="flex flex-1 flex-col justify-between">
+            <div>
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl bg-[var(--green-bg)]">
+                🛒
+              </div>
+              <h2 className="section-heading text-[var(--cream)]">Seller Checkout</h2>
+              <p className="mt-2 text-sm text-[var(--cream-muted)]">
+                Ring up customers, manage inventory, and create orders.
+              </p>
             </div>
-            <h2 className="section-heading text-[var(--cream)]">
-              Seller Checkout
-            </h2>
-            <p className="mt-2 text-sm text-[var(--cream-muted)]">
-              Ring up customers, manage inventory, and create orders.
-            </p>
-          </div>
-          <span className="card-btn-cta">
-            Go to checkout &rarr;
-          </span>
+            <CardCTA>Go to checkout &rarr;</CardCTA>
+          </Card>
         </Link>
-        <Link
-          href="#my-products"
-          className="card-organic card-btn flex flex-col justify-between p-6"
-        >
-          <div>
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl" style={{ background: "var(--green-bg)" }}>
-              📦
+        <Link href="/seller/inventory" className="flex flex-col">
+          <Card variant="clickable" padding="md" className="flex flex-1 flex-col justify-between">
+            <div>
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl bg-[var(--green-bg)]">
+                📦
+              </div>
+              <h2 className="section-heading text-[var(--cream)]">Inventory</h2>
+              <p className="mt-2 text-sm text-[var(--cream-muted)]">
+                Manage listings by market day: add items, set prices, and stock levels.
+              </p>
             </div>
-            <h2 className="section-heading text-[var(--cream)]">
-              My products
-            </h2>
-            <p className="mt-2 text-sm text-[var(--cream-muted)]">
-              Add new items, set prices, and remove products from your stall.
-            </p>
-          </div>
-          <span className="card-btn-cta">
-            Add or edit products &rarr;
-          </span>
+            <CardCTA>Manage inventory &rarr;</CardCTA>
+          </Card>
         </Link>
-        <div className="card-organic flex flex-col justify-between p-6 opacity-90">
+        <Card padding="md" className="flex flex-col justify-between opacity-90">
           <div>
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl" style={{ background: "var(--brown-bg)" }}>
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-xl bg-[var(--brown-bg)]">
               ☀️
             </div>
             <h2 className="section-heading">Start a Market Day</h2>
@@ -111,7 +100,7 @@ export function SellerDashboard({
               Set up your stall and add listings. Coming soon.
             </p>
           </div>
-        </div>
+        </Card>
       </section>
 
       <section id="my-products">
@@ -121,21 +110,23 @@ export function SellerDashboard({
       <section>
         <h2 className="section-heading mb-4">Recent orders</h2>
         {loading ? (
-          <p className="text-sm text-[var(--cream-muted)]">Loading orders…</p>
+          <Skeleton lines={3} />
         ) : orders.length === 0 ? (
-          <div className="card-organic px-6 py-10 text-center">
-            <p className="text-sm text-[var(--cream-muted)]">
-              No orders yet. Head to{" "}
-              <Link href="/seller/checkout" className="link-button">
-                Seller Checkout
-              </Link>{" "}
-              to create your first order.
-            </p>
-          </div>
+          <EmptyState
+            message={
+              <>
+                No orders yet. Head to{" "}
+                <Link href="/seller/checkout" className="link-button">
+                  Seller Checkout
+                </Link>{" "}
+                to create your first order.
+              </>
+            }
+          />
         ) : (
-          <div className="card-organic overflow-hidden p-0">
+          <Card padding="none" className="overflow-hidden">
             <table className="w-full text-left text-sm">
-              <thead className="border-b text-xs uppercase tracking-wider text-[var(--cream-muted)]" style={{ borderColor: "rgba(168,137,104,0.2)", background: "var(--brown-bg)" }}>
+              <thead className="table-head">
                 <tr>
                   <th className="px-4 py-3">Order</th>
                   <th className="px-4 py-3">Status</th>
@@ -154,7 +145,7 @@ export function SellerDashboard({
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         )}
       </section>
 
@@ -168,33 +159,27 @@ function ProfileSettingsSection({ userId }: { userId: string }) {
 
   return (
     <div>
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setOpen((v) => !v)}
-        className="section-heading mb-3 flex w-full items-center gap-2 rounded-lg border-2 border-[var(--brown-soft)]/40 bg-[var(--brown-bg)]/50 px-4 py-3 text-left transition-colors hover:border-[var(--green-soft)]/50 hover:bg-[var(--green-bg)]/30"
+        className="section-heading mb-3 w-full justify-start rounded-lg border-2 border-[var(--brown-soft)]/40 bg-[var(--brown-bg)]/50 px-4 py-3"
       >
-        <span className="inline-block transition-transform" style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}>
+        <span className={"inline-block transition-transform " + (open ? "rotate-90" : "")}>
           &#9654;
         </span>
         Profile &amp; storefront
-      </button>
+      </Button>
       {open && (
-        <div className="card-organic p-6">
+        <Card padding="md">
           <ProfileSettings userId={userId} />
-        </div>
+        </Card>
       )}
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const isGood = status === "PAID" || status === "COMPLETED";
-  return (
-    <span
-      className="badge-soft inline-block rounded-full px-2 py-0.5 text-[0.65rem] font-medium"
-      style={isGood ? { background: "var(--green-bg)", color: "var(--green-pale)", border: "1px solid rgba(107,158,58,0.3)" } : undefined}
-    >
-      {status.replace("_", " ")}
-    </span>
-  );
+  const variant = status === "PAID" || status === "COMPLETED" ? "success" : "neutral";
+  return <Badge variant={variant}>{status.replace("_", " ")}</Badge>;
 }

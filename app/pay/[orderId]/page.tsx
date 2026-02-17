@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 import { PayNowButton } from "./PayNowButton";
 
 type OrderRow = {
@@ -24,7 +24,7 @@ export default async function PayOrderPage({
 }: {
   params: { orderId: string };
 }) {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   const { data, error } = await supabase
     .from("orders")

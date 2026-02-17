@@ -3,10 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabaseClient";
+import { Toast } from "@/app/components/ui";
 
 type AuthTab = "login" | "signup";
 
-export function AuthForm() {
+interface AuthFormProps {
+  next?: string;
+}
+
+export function AuthForm({ next }: AuthFormProps) {
   const router = useRouter();
   const [tab, setTab] = useState<AuthTab>("login");
   const [email, setEmail] = useState("");
@@ -14,6 +19,7 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,13 +28,14 @@ export function AuthForm() {
     setMessage(null);
 
     const supabase = createBrowserSupabaseClient();
+    const redirectTo = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 
     if (tab === "signup") {
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}${redirectTo}`,
         },
       });
 
@@ -48,8 +55,12 @@ export function AuthForm() {
       if (signInError) {
         setError(signInError.message);
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        setToastVisible(true);
+        setTimeout(() => {
+          router.replace(redirectTo);
+          router.refresh();
+        }, 500);
+        return;
       }
     }
 
@@ -116,7 +127,7 @@ export function AuthForm() {
           />
         </div>
         {error && (
-          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
             {error}
           </p>
         )}
@@ -129,6 +140,13 @@ export function AuthForm() {
           {loading ? "Please wait…" : tab === "login" ? "Log in" : "Create account"}
         </button>
       </form>
+
+      <Toast
+        message="Logged in"
+        visible={toastVisible}
+        onDismiss={() => setToastVisible(false)}
+        duration={500}
+      />
     </div>
   );
 }

@@ -1,13 +1,14 @@
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SaveSellerButton } from "@/app/components/SaveSellerButton";
 
 interface SellerPageProps {
   params: { sellerId: string };
 }
 
 export async function generateMetadata({ params }: SellerPageProps) {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
   const { data: profile } = await supabase
     .from("profiles")
     .select("display_name")
@@ -19,7 +20,7 @@ export async function generateMetadata({ params }: SellerPageProps) {
 }
 
 export default async function SellerPage({ params }: SellerPageProps) {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   // 1. Fetch profile (including new customization fields)
   const { data: profile } = await supabase
@@ -161,6 +162,7 @@ export default async function SellerPage({ params }: SellerPageProps) {
       </div>
 
       <div className="mb-8 flex flex-wrap items-center gap-3 text-xs text-[var(--cream-muted)]">
+        <SaveSellerButton sellerId={profile.id} />
         <span
           className="rounded-full border px-2 py-0.5 font-medium"
           style={{

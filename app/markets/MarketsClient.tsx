@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { PageHeader, Card, Input, Select, EmptyState, Skeleton } from "@/app/components/ui";
 
 interface Market {
   id: string;
@@ -57,47 +58,36 @@ export function MarketsClient() {
     fetchMarkets();
   }, [fetchMarkets]);
 
+  const cityOptions = cities.map((c) => ({ value: c, label: c }));
+
   return (
     <div className="space-y-12">
-      <header className="space-y-3">
-        <h1 className="page-heading">Browse markets</h1>
-        <p className="page-subheading">
-          Find local farmers markets near you.
-        </p>
-      </header>
+      <PageHeader
+        title="Browse markets"
+        subtitle="Find local farmers markets near you."
+      />
 
-      <section className="card-organic p-6">
+      <Card padding="md">
         <h2 className="section-heading mb-4">Filter</h2>
         <div className="flex flex-wrap items-end gap-4">
-          <div className="min-w-[200px] flex-1">
-            <label htmlFor="search" className="mb-1.5 block text-sm font-medium text-[var(--cream-muted)]">
-              Search
-            </label>
-            <input
-              id="search"
-              type="text"
-              placeholder="Market name or suburb…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="input"
-            />
-          </div>
-          <div className="min-w-[140px]">
-            <label htmlFor="city" className="mb-1.5 block text-sm font-medium text-[var(--cream-muted)]">
-              City
-            </label>
-            <select
-              id="city"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="input"
-            >
-              <option value="">All cities</option>
-              {cities.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
+          <Input
+            id="search"
+            label="Search"
+            type="text"
+            placeholder="Market name or suburb…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="min-w-[200px] flex-1"
+          />
+          <Select
+            id="city"
+            label="City"
+            placeholder="All cities"
+            options={cityOptions}
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            className="min-w-[140px]"
+          />
           <label className="flex cursor-pointer items-center gap-2">
             <input
               type="checkbox"
@@ -108,20 +98,14 @@ export function MarketsClient() {
             <span className="text-sm text-[var(--cream-muted)]">Open today</span>
           </label>
         </div>
-      </section>
+      </Card>
 
       <section>
         <h2 className="section-heading mb-4">Results</h2>
         {loading ? (
-          <p className="py-12 text-center text-sm text-[var(--cream-muted)]">
-            Loading markets…
-          </p>
+          <Skeleton lines={4} className="py-8" />
         ) : markets.length === 0 ? (
-          <div className="card-organic px-6 py-12 text-center">
-            <p className="text-sm text-[var(--cream-muted)]">
-              No markets found. Try adjusting your filters.
-            </p>
-          </div>
+          <EmptyState message="No markets found. Try adjusting your filters." />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {markets.map((market) => (
@@ -143,7 +127,7 @@ export function MarketsClient() {
                     {market.address}
                   </p>
                 )}
-                <span className="mt-4 text-sm font-medium" style={{ color: "var(--green-pale)" }}>
+                <span className="mt-4 text-sm font-medium text-[var(--green-pale)]">
                   View details &rarr;
                 </span>
               </Link>

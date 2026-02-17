@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 
 /**
  * POST /api/orders/release-expired
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   // ── Release expired orders via transactional RPC ───────────────────────
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   const { data, error } = await supabase.rpc("release_expired_orders");
 

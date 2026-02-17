@@ -1,6 +1,7 @@
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SaveMarketButton } from "@/app/components/SaveMarketButton";
 
 interface MarketDetailProps {
   params: { marketId: string };
@@ -27,7 +28,7 @@ interface SellerSession {
 }
 
 export async function generateMetadata({ params }: MarketDetailProps) {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
   const { data: market } = await supabase
     .from("markets")
     .select("name")
@@ -42,7 +43,7 @@ export async function generateMetadata({ params }: MarketDetailProps) {
 }
 
 export default async function MarketDetailPage({ params }: MarketDetailProps) {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   // 1. Fetch market
   const { data: market } = await supabase
@@ -103,16 +104,19 @@ export default async function MarketDetailPage({ params }: MarketDetailProps) {
         &larr; Back to markets
       </Link>
 
-      <header className="space-y-2">
-        <h1 className="page-heading">{market.name}</h1>
-        {(market.suburb || market.city) && (
-          <p className="page-subheading !mt-1">
-            {[market.suburb, market.city].filter(Boolean).join(", ")}
-          </p>
-        )}
-        {market.address && (
-          <p className="text-sm text-[var(--cream-muted)]">{market.address}</p>
-        )}
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2 min-w-0">
+          <h1 className="page-heading">{market.name}</h1>
+          {(market.suburb || market.city) && (
+            <p className="page-subheading !mt-1">
+              {[market.suburb, market.city].filter(Boolean).join(", ")}
+            </p>
+          )}
+          {market.address && (
+            <p className="text-sm text-[var(--cream-muted)]">{market.address}</p>
+          )}
+        </div>
+        <SaveMarketButton marketId={market.id} />
       </header>
 
       <section className="grid gap-4 sm:grid-cols-3">

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 import { getStripe } from "@/lib/stripe";
 
 // ── Types matching the Supabase query shape ────────────────────────────────
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 1. Load order + order_items (with listing names) via service-role client
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
 
   const { data, error: fetchError } = await supabase
     .from("orders")

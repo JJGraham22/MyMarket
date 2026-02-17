@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabaseClient";
+import { Card, Button, EmptyState, Skeleton } from "@/app/components/ui";
 
 interface SessionOption {
   id: string;
@@ -177,7 +178,8 @@ export function MyProducts({ userId }: { userId: string }) {
       </p>
 
       {/* Add form */}
-      <form onSubmit={handleAdd} className="card-organic space-y-4 p-6">
+      <form onSubmit={handleAdd}>
+        <Card padding="md" className="space-y-4">
         <h3 className="font-semibold text-[var(--cream)]">Add product</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -252,10 +254,11 @@ export function MyProducts({ userId }: { userId: string }) {
           </div>
         </div>
         {error && <p className="text-sm text-red-300">{error}</p>}
-        {message && <p className="text-sm" style={{ color: "var(--green-pale)" }}>{message}</p>}
-        <button type="submit" disabled={adding || sessions.length === 0} className="btn-primary">
+        {message && <p className="text-sm text-[var(--green-pale)]">{message}</p>}
+        <Button type="submit" disabled={adding || sessions.length === 0}>
           {adding ? "Adding…" : "Add product"}
-        </button>
+        </Button>
+        </Card>
       </form>
 
       {sessions.length === 0 && (
@@ -270,15 +273,13 @@ export function MyProducts({ userId }: { userId: string }) {
       <div>
         <h3 className="mb-3 font-semibold text-[var(--cream)]">Current products</h3>
         {loading ? (
-          <p className="text-sm text-[var(--cream-muted)]">Loading…</p>
+          <Skeleton lines={3} />
         ) : activeListings.length === 0 ? (
-          <div className="card-organic px-6 py-8 text-center">
-            <p className="text-sm text-[var(--cream-muted)]">No products yet. Add one above.</p>
-          </div>
+          <EmptyState message="No products yet. Add one above." />
         ) : (
-          <div className="card-organic overflow-hidden p-0">
+          <Card padding="none" className="overflow-hidden">
             <table className="w-full text-left text-sm">
-              <thead className="border-b text-xs uppercase tracking-wider text-[var(--cream-muted)]" style={{ borderColor: "rgba(168,137,104,0.2)", background: "var(--brown-bg)" }}>
+              <thead className="table-head">
                 <tr>
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Unit</th>
@@ -297,19 +298,15 @@ export function MyProducts({ userId }: { userId: string }) {
                     <td className="px-4 py-3 text-right text-[var(--cream-muted)]">{row.qty_available}</td>
                     <td className="px-4 py-3 text-xs text-[var(--cream-muted)]">{sessionLabels.get(row.seller_session_id) ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(row.id)}
-                        className="btn-remove"
-                      >
+                      <Button type="button" variant="remove" onClick={() => handleDelete(row.id)}>
                         Remove
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         )}
       </div>
     </div>
