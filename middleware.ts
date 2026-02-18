@@ -5,6 +5,17 @@ const AUTH_PATH = "/auth";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  
+  // #region agent log
+  if (pathname === '/api/auth/square') {
+    try {
+      const {appendFileSync} = require('fs');
+      const {join} = require('path');
+      const logData = JSON.stringify({location:'middleware.ts:7',message:'Middleware intercepting /api/auth/square',data:{pathname,url:request.url},timestamp:Date.now(),runId:'run1',hypothesisId:'C'})+'\n';
+      appendFileSync(join(process.cwd(),'.cursor','debug.log'),logData);
+    } catch(e){}
+  }
+  // #endregion
 
   // ── 1. Create a mutable response so cookie writes propagate to the browser ──
   let response = NextResponse.next({ request });

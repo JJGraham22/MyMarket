@@ -21,7 +21,7 @@ interface ListingRow {
   seller_session_id: string;
 }
 
-interface TodayMarketDay {
+interface MarketDay {
   id: string;
   date: string;
   markets: { id: string; name: string } | null;
@@ -30,7 +30,7 @@ interface TodayMarketDay {
 export function InventoryClient() {
   const [userId, setUserId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
-  const [todayMarketDays, setTodayMarketDays] = useState<TodayMarketDay[]>([]);
+  const [allMarketDays, setAllMarketDays] = useState<MarketDay[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [listings, setListings] = useState<ListingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,14 +75,16 @@ export function InventoryClient() {
     if (options.length > 0 && !selectedSessionId) setSelectedSessionId(options[0].id);
   }, [today, selectedSessionId]);
 
-  const loadTodayMarketDays = useCallback(async () => {
+  const loadAllMarketDays = useCallback(async () => {
     const supabase = createBrowserSupabaseClient();
+    // Load all market days (past, today, and future) so sellers can select any market
     const { data } = await supabase
       .from("market_days")
       .select("id, date, markets(id, name)")
-      .eq("date", today);
-    setTodayMarketDays((data as TodayMarketDay[]) ?? []);
-  }, [today]);
+      .order("date", { ascending: false })
+      .limit(100); // Reasonable limit
+    setAllMarketDays((data as unknown as MarketDay[]) ?? []);
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -93,12 +95,12 @@ export function InventoryClient() {
         return;
       }
       setUserId(session.user.id);
-      await loadTodayMarketDays();
+      await loadAllMarketDays();
       await loadSessions();
       setLoading(false);
     }
     init();
-  }, [loadTodayMarketDays, loadSessions]);
+  }, [loadAllMarketDays, loadSessions]);
 
   const loadListings = useCallback(async () => {
     if (!selectedSessionId) {
@@ -118,7 +120,7 @@ export function InventoryClient() {
     loadListings();
   }, [loadListings]);
 
-  const [existingTodayIds, setExistingTodayIds] = useState<Set<string>>(new Set());
+  const [existingSessionMarketDayIds, setExistingSessionMarketDayIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!userId) return;
     const supabase = createBrowserSupabaseClient();
@@ -128,11 +130,13 @@ export function InventoryClient() {
       .eq("seller_id", userId)
       .then(({ data }) => {
         const ids = new Set((data ?? []).map((s: { market_day_id: string }) => s.market_day_id));
-        setExistingTodayIds(ids);
+        setExistingSessionMarketDayIds(ids);
       });
   }, [userId, sessions]);
 
-  const canStartTodayFiltered = todayMarketDays.filter((md) => !existingTodayIds.has(md.id));
+  // Filter out market days where user already has a session
+  const availableMarketDays = allMarketDays.filter((md) => !existingSessionMarketDayIds.has(md.id));
+  const todayMarketDays = allMarketDays.filter((md) => md.date === today);
 
   async function startSession(marketDayId: string) {
     if (!userId) return;
@@ -165,36 +169,57 @@ export function InventoryClient() {
         <p className="text-sm text-[var(--cream-muted)]">Sign in as a seller to manage inventory.</p>
       ) : (
         <>
-          {/* Start today's session */}
-          {todayMarketDays.length > 0 && (
+          {/* Start a market session */}
+          {availableMarketDays.length > 0 && (
             <Card padding="md">
-              <h2 className="section-heading mb-3">Start today&apos;s market session</h2>
+              <h2 className="section-heading mb-3">Start a market session</h2>
               <p className="mb-4 text-sm text-[var(--cream-muted)]">
-                You need a session for a market day to add listings. Start one below if you&apos;re selling today.
+                You need a session for a market day to add listings. Select a market and date below to start one.
               </p>
-              {canStartTodayFiltered.length === 0 ? (
-                <p className="text-sm text-[var(--green-pale)]">You already have a session for today&apos;s market(s).</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {canStartTodayFiltered.map((md) => (
-                    <Button
-                      key={md.id}
-                      type="button"
-                      onClick={() => startSession(md.id)}
-                      disabled={starting === md.id}
-                    >
-                      {starting === md.id ? "Starting…" : `Start at ${md.markets?.name ?? "Market"}`}
-                    </Button>
-                  ))}
-                </div>
-              )}
+              <div className="space-y-2">
+                {availableMarketDays.map((md) => {
+                  const dateObj = new Date(md.date + "T00:00:00");
+                  const dateStr = dateObj.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+                  const isToday = md.date === today;
+                  const marketName = md.markets?.name ?? "Market";
+                  return (
+                    <div key={md.id} className="flex items-center justify-between rounded-lg border border-[rgba(168,137,104,0.2)] bg-[var(--brown-bg)] px-4 py-2.5">
+                      <div>
+                        <span className="font-medium text-[var(--cream)]">{marketName}</span>
+                        <span className="ml-2 text-sm text-[var(--cream-muted)]">{dateStr}</span>
+                        {isToday && (
+                          <span className="ml-2 rounded-full bg-[var(--green-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--green-pale)]">
+                            Today
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => startSession(md.id)}
+                        disabled={starting === md.id}
+                      >
+                        {starting === md.id ? "Starting…" : "Start session"}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
             </Card>
           )}
 
-          {todayMarketDays.length === 0 && (
+          {availableMarketDays.length === 0 && allMarketDays.length > 0 && (
+            <Card padding="md">
+              <p className="text-sm text-[var(--green-pale)]">
+                You already have sessions for all available market days. Use the dropdown below to select a session and add items.
+              </p>
+            </Card>
+          )}
+
+          {allMarketDays.length === 0 && (
             <Card padding="md">
               <p className="text-sm text-[var(--cream-muted)]">
-                No market days scheduled for today. Create or select a market day in your market&apos;s schedule to start a session.
+                No market days found. Market days need to be created first. Contact your market administrator or create them in the markets section.
               </p>
             </Card>
           )}

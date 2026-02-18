@@ -23,3 +23,13 @@ npm-debug.log*
 # Build / tooling
 *.tsbuildinfo
 .turbo
+
+# Capacitor native build artifacts (keep ios/ and android/ dirs in git)
+ios/App/App/public/
+ios/App/Pods/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+*.xcworkspace
+*.xcuserdatad
+Pods/

@@ -1,4 +1,5 @@
 import { SellerCheckoutClient } from "./SellerCheckoutClient";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 
 type SellerSessionRow = {
@@ -23,20 +24,22 @@ async function getSellerSessionsWithLabels() {
     return [];
   }
 
-  const supabase = createServiceRoleSupabaseClient();
+  // Use logged-in user's sessions (same as inventory) so checkout shows the same listings.
+  // Fall back to dev seller ID only when not logged in (e.g. preview).
+  const serverSupabase = await createServerSupabaseClient();
+  const { data: { user } } = await serverSupabase.auth.getUser();
+  const sellerId = user?.id ?? process.env.NEXT_PUBLIC_DEV_SELLER_ID;
 
-  // For now, we look up sessions using a dev seller id so the page
-  // works before auth wiring is in place.
-  const devSellerId = process.env.NEXT_PUBLIC_DEV_SELLER_ID;
-
-  if (!devSellerId) {
+  if (!sellerId) {
     return [];
   }
+
+  const supabase = createServiceRoleSupabaseClient();
 
   const { data: sessions, error: sessionsError } = await supabase
     .from("seller_sessions")
     .select("id, market_day_id, stall_number")
-    .eq("seller_id", devSellerId)
+    .eq("seller_id", sellerId)
     .order("created_at", { ascending: false });
 
   if (sessionsError || !sessions || sessions.length === 0) {
@@ -70,8 +73,37 @@ async function getSellerSessionsWithLabels() {
   });
 }
 
+async function getSellerSquareConfig(): Promise<{
+  hasTerminal: boolean;
+  hasSquareConnected: boolean;
+}> {
+  if (!hasServerSupabaseConfig()) {
+    return { hasTerminal: false, hasSquareConnected: false };
+  }
+
+  const serverSupabase = await createServerSupabaseClient();
+  const { data: { user } } = await serverSupabase.auth.getUser();
+  const sellerId = user?.id ?? process.env.NEXT_PUBLIC_DEV_SELLER_ID;
+  if (!sellerId) {
+    return { hasTerminal: false, hasSquareConnected: false };
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("square_device_id, payment_provider, square_access_token")
+    .eq("id", sellerId)
+    .single();
+
+  return {
+    hasTerminal: !!(data?.square_device_id && data?.payment_provider === "square"),
+    hasSquareConnected: !!(data?.square_access_token && data?.payment_provider === "square"),
+  };
+}
+
 export default async function SellerCheckoutPage() {
   const sellerSessions = await getSellerSessionsWithLabels();
+  const { hasTerminal: hasSquareTerminal, hasSquareConnected } = await getSellerSquareConfig();
 
   return (
     <main className="space-y-6">
@@ -103,7 +135,11 @@ export default async function SellerCheckoutPage() {
         </p>
       )}
 
-      <SellerCheckoutClient sellerSessions={sellerSessions} />
+      <SellerCheckoutClient
+        sellerSessions={sellerSessions}
+        hasSquareTerminal={hasSquareTerminal}
+        hasSquareConnected={hasSquareConnected}
+      />
     </main>
   );
 }

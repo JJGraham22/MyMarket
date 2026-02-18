@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { isNativePlatform } from "@/lib/capacitor";
 
 type SellerSessionOption = {
   id: string;
@@ -26,6 +27,7 @@ type OrderResult = {
   payUrl: string;
   expiresAt: string;
   status: string;
+  terminalCheckoutId?: string;
 };
 
 function ListingRow({
@@ -83,6 +85,7 @@ function OrderResultPanel({
 }) {
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  const [terminalStatus, setTerminalStatus] = useState<string | null>(null);
 
   // Poll order status every 3 seconds while PENDING_PAYMENT
   useEffect(() => {
@@ -90,6 +93,33 @@ function OrderResultPanel({
 
     let cancelled = false;
 
+    // If we have a terminal checkout, poll its status
+    if (orderResult.terminalCheckoutId) {
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(
+            `/api/square/terminal/status?checkoutId=${orderResult.terminalCheckoutId}&orderId=${orderResult.orderId}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (!cancelled) {
+              setTerminalStatus(data.status);
+              if (data.orderStatus === "PAID") {
+                onStatusChange("PAID");
+              }
+            }
+          }
+        } catch {
+          // keep polling
+        }
+      }, 3000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
+    }
+
+    // Otherwise poll generic order status (online payment flow)
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/orders/status?orderId=${orderResult.orderId}`);
@@ -108,7 +138,7 @@ function OrderResultPanel({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [orderResult.orderId, orderResult.status, onStatusChange]);
+  }, [orderResult.orderId, orderResult.status, orderResult.terminalCheckoutId, onStatusChange]);
 
   async function handleComplete() {
     setCompleting(true);
@@ -166,7 +196,33 @@ function OrderResultPanel({
         </span>
       </p>
 
-      {isPending && (
+      {isPending && orderResult.terminalCheckoutId && (
+        <>
+          <p className="text-[0.7rem] text-emerald-200">
+            Payment sent to Square Terminal.{" "}
+            {terminalStatus && (
+              <span className="font-medium">
+                Terminal status: {terminalStatus}
+              </span>
+            )}
+          </p>
+          <p className="text-[0.7rem] text-slate-300">
+            Ask the buyer to tap or insert their card on the terminal.
+            Checking for payment every few seconds...
+          </p>
+          <p className="text-[0.7rem] text-emerald-200">
+            Expires at:{" "}
+            <span className="font-mono">
+              {new Date(orderResult.expiresAt).toLocaleTimeString(undefined, {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </p>
+        </>
+      )}
+
+      {isPending && !orderResult.terminalCheckoutId && (
         <>
           <p className="text-[0.7rem] text-emerald-200">
             Expires at:{" "}
@@ -179,7 +235,7 @@ function OrderResultPanel({
           </p>
           <p className="text-[0.7rem] text-slate-300">
             Show the QR to the buyer on this screen, or copy the link from the payment page.
-            Checking for payment every few seconds…
+            Checking for payment every few seconds...
           </p>
           <a
             href={orderResult.payUrl}
@@ -220,10 +276,25 @@ function OrderResultPanel({
   );
 }
 
-export function SellerCheckoutClient({ sellerSessions }: { sellerSessions: SellerSessionOption[] }) {
+export function SellerCheckoutClient({
+  sellerSessions,
+  hasSquareTerminal = false,
+  hasSquareConnected = false,
+}: {
+  sellerSessions: SellerSessionOption[];
+  hasSquareTerminal?: boolean;
+  hasSquareConnected?: boolean;
+}) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     sellerSessions[0]?.id ?? null
   );
+  const [isNative, setIsNative] = useState(false);
+
+  useEffect(() => {
+    setIsNative(isNativePlatform());
+  }, []);
+
+  const showNativeTapToPay = isNative && hasSquareConnected;
   const [searchTerm, setSearchTerm] = useState("");
   const [listings, setListings] = useState<Listing[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
@@ -310,39 +381,171 @@ export function SellerCheckoutClient({ sellerSessions }: { sellerSessions: Selle
     setCart((prev) => prev.filter((item) => item.id !== id));
   }
 
+  async function createOrder(): Promise<{
+    orderId: string;
+    totalCents: number;
+    payUrl: string;
+    expiresAt: string;
+  } | null> {
+    const res = await fetch("/api/seller/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sellerSessionId: selectedSessionId,
+        items: cart.map((item) => ({
+          listingId: item.id,
+          quantity: item.quantity,
+        })),
+      }),
+    });
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body.error ?? "Failed to create order");
+    }
+
+    return {
+      orderId: body.orderId,
+      totalCents: body.totalCents,
+      payUrl: body.payUrl,
+      expiresAt: body.expiresAt,
+    };
+  }
+
   async function handlePayByPhone() {
     if (!selectedSessionId || cart.length === 0) return;
     setPlacingOrder(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/seller/checkout", {
+      const result = await createOrder();
+      if (!result) return;
+
+      setOrderResult({
+        orderId: result.orderId,
+        totalCents: result.totalCents,
+        payUrl: result.payUrl,
+        expiresAt: result.expiresAt,
+        status: "PENDING_PAYMENT",
+      });
+    } catch (err: unknown) {
+      setError((err as Error).message);
+    } finally {
+      setPlacingOrder(false);
+    }
+  }
+
+  async function handleTapToPay() {
+    if (!selectedSessionId || cart.length === 0) return;
+    setPlacingOrder(true);
+    setError(null);
+
+    try {
+      const result = await createOrder();
+      if (!result) return;
+
+      // Send the order to the Square Terminal device
+      const terminalRes = await fetch("/api/square/terminal/checkout", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          sellerSessionId: selectedSessionId,
-          items: cart.map((item) => ({
-            listingId: item.id,
-            quantity: item.quantity
-          }))
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: result.orderId }),
       });
 
-      const body = await res.json().catch(() => ({}));
+      const terminalBody = await terminalRes.json().catch(() => ({}));
 
-      if (!res.ok) {
-        throw new Error(body.error ?? "Failed to create order");
+      if (!terminalRes.ok) {
+        throw new Error(
+          terminalBody.error ?? "Failed to send payment to terminal."
+        );
       }
 
       setOrderResult({
-        orderId: body.orderId,
-        totalCents: body.totalCents,
-        payUrl: body.payUrl,
-        expiresAt: body.expiresAt,
-        status: "PENDING_PAYMENT"
+        orderId: result.orderId,
+        totalCents: result.totalCents,
+        payUrl: result.payUrl,
+        expiresAt: result.expiresAt,
+        status: "PENDING_PAYMENT",
+        terminalCheckoutId: terminalBody.checkoutId,
       });
+    } catch (err: unknown) {
+      setError((err as Error).message);
+    } finally {
+      setPlacingOrder(false);
+    }
+  }
+
+  async function handleNativeTapToPay() {
+    if (!selectedSessionId || cart.length === 0) return;
+    setPlacingOrder(true);
+    setError(null);
+
+    try {
+      const result = await createOrder();
+      if (!result) return;
+
+      const { SquareMobilePayments } = await import(
+        "@capawesome/capacitor-square-mobile-payments"
+      );
+
+      // Set up listeners for payment result before starting payment
+      const paymentPromise = new Promise<{ paymentId: string | null; success: boolean }>((resolve) => {
+        SquareMobilePayments.addListener("paymentDidFinish", (event) => {
+          resolve({ paymentId: event.payment?.id ?? null, success: true });
+        });
+        SquareMobilePayments.addListener("paymentDidFail", () => {
+          resolve({ paymentId: null, success: false });
+        });
+        SquareMobilePayments.addListener("paymentDidCancel", () => {
+          resolve({ paymentId: null, success: false });
+        });
+      });
+
+      // Start the payment (presents the card reader UI)
+      await SquareMobilePayments.startPayment({
+        paymentParameters: {
+          amountMoney: {
+            amount: result.totalCents,
+            currency: "AUD",
+          },
+          paymentAttemptId: result.orderId,
+          referenceId: result.orderId,
+        },
+        promptParameters: {},
+      });
+
+      // Wait for the payment result from the listener
+      const paymentOutcome = await paymentPromise;
+
+      // Remove listeners
+      await SquareMobilePayments.removeAllListeners();
+
+      if (paymentOutcome.success && paymentOutcome.paymentId) {
+        await fetch("/api/orders/complete-native-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: result.orderId,
+            squarePaymentId: paymentOutcome.paymentId,
+          }),
+        });
+
+        setOrderResult({
+          orderId: result.orderId,
+          totalCents: result.totalCents,
+          payUrl: result.payUrl,
+          expiresAt: result.expiresAt,
+          status: "PAID",
+        });
+      } else {
+        setOrderResult({
+          orderId: result.orderId,
+          totalCents: result.totalCents,
+          payUrl: result.payUrl,
+          expiresAt: result.expiresAt,
+          status: "PENDING_PAYMENT",
+        });
+        setError("Payment was not completed. You can try again or use the QR payment link.");
+      }
     } catch (err: unknown) {
       setError((err as Error).message);
     } finally {
@@ -540,11 +743,58 @@ export function SellerCheckoutClient({ sellerSessions }: { sellerSessions: Selle
           >
             {placingOrder ? "Creating order…" : "Pay by phone (QR)"}
           </button>
+
+          {hasSquareTerminal && (
+            <button
+              type="button"
+              className="w-full justify-center rounded-lg border-2 border-emerald-500/60 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-300 transition-all hover:bg-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={!canCheckout || placingOrder}
+              onClick={handleTapToPay}
+            >
+              {placingOrder ? "Sending to terminal…" : "Tap to pay on terminal"}
+            </button>
+          )}
+
+          {showNativeTapToPay && (
+            <button
+              type="button"
+              className="w-full justify-center rounded-lg border-2 border-blue-500/60 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-300 transition-all hover:bg-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={!canCheckout || placingOrder}
+              onClick={handleNativeTapToPay}
+            >
+              {placingOrder ? "Starting payment…" : "Tap to pay on this phone"}
+            </button>
+          )}
+
           <p className="text-[0.7rem] text-slate-400">
-            When you tap{" "}
-            <span className="font-semibold text-emerald-300">Pay by phone (QR)</span>, an order is
-            created and inventory reserved for 10 minutes while the buyer scans the QR code on
-            their phone.
+            {hasSquareTerminal || showNativeTapToPay ? (
+              <>
+                <span className="font-semibold text-emerald-300">Pay by phone (QR)</span> generates a
+                payment link for the buyer to scan.
+                {hasSquareTerminal && (
+                  <>
+                    {" "}
+                    <span className="font-semibold text-emerald-300">Terminal</span> sends the payment
+                    to your Square Terminal device.
+                  </>
+                )}
+                {showNativeTapToPay && (
+                  <>
+                    {" "}
+                    <span className="font-semibold text-blue-300">Tap on phone</span> uses your
+                    connected Square Reader or phone NFC to accept a card tap.
+                  </>
+                )}
+                {" "}All options reserve inventory for 10 minutes.
+              </>
+            ) : (
+              <>
+                When you tap{" "}
+                <span className="font-semibold text-emerald-300">Pay by phone (QR)</span>, an order is
+                created and inventory reserved for 10 minutes while the buyer scans the QR code on
+                their phone.
+              </>
+            )}
           </p>
         </div>
 

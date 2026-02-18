@@ -2,6 +2,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SaveSellerButton } from "@/app/components/SaveSellerButton";
+import { ProductCart } from "./ProductCart";
 
 interface SellerPageProps {
   params: { sellerId: string };
@@ -45,7 +46,7 @@ export default async function SellerPage({ params }: SellerPageProps) {
 
   const accent = profile.theme_color ?? "#4a7c23";
 
-  // 2. Fetch recent seller sessions with market info
+  // 2. Fetch recent seller sessions with market info (for "Recent market appearances" section)
   const { data: sessions } = await supabase
     .from("seller_sessions")
     .select(
@@ -58,8 +59,8 @@ export default async function SellerPage({ params }: SellerPageProps) {
     .order("created_at", { ascending: false })
     .limit(10);
 
-  // 3. Fetch current / recent listings across all sessions
-  const sessionIds = (sessions ?? []).map((s: { id: string }) => s.id);
+  // 3. Fetch ALL active listings for this seller (across all their sessions)
+  // This ensures guests can see all products the seller is offering
   let listings: {
     id: string;
     name: string;
@@ -69,16 +70,35 @@ export default async function SellerPage({ params }: SellerPageProps) {
     seller_session_id: string;
   }[] = [];
 
-  if (sessionIds.length > 0) {
+  // Get all session IDs for this seller
+  const { data: allSessions } = await supabase
+    .from("seller_sessions")
+    .select("id")
+    .eq("seller_id", params.sellerId);
+
+  const allSessionIds = (allSessions ?? []).map((s: { id: string }) => s.id);
+
+  if (allSessionIds.length > 0) {
     const { data } = await supabase
       .from("listings")
       .select("id, name, price_cents, unit, qty_available, seller_session_id")
-      .in("seller_session_id", sessionIds)
+      .in("seller_session_id", allSessionIds)
       .eq("is_active", true)
-      .order("name", { ascending: true })
-      .limit(20);
+      .order("name", { ascending: true });
 
     listings = data ?? [];
+    
+    // Deduplicate listings by name+price (seller might have same product in multiple sessions)
+    // Keep the one with highest quantity
+    const listingsMap = new Map<string, typeof listings[0]>();
+    listings.forEach((listing) => {
+      const key = `${listing.name}-${listing.price_cents}`;
+      const existing = listingsMap.get(key);
+      if (!existing || listing.qty_available > existing.qty_available) {
+        listingsMap.set(key, listing);
+      }
+    });
+    listings = Array.from(listingsMap.values());
   }
 
   return (
@@ -190,26 +210,11 @@ export default async function SellerPage({ params }: SellerPageProps) {
 
       <section className="mb-10">
         <h2 className="section-heading mb-4">Products</h2>
-        {listings.length === 0 ? (
-          <div className="card-organic px-6 py-10 text-center">
-            <p className="text-sm text-[var(--cream-muted)]">No active listings right now.</p>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {listings.map((listing) => (
-              <div key={listing.id} className="card-organic p-5" style={{ borderColor: accent ? `${accent}40` : undefined }}>
-                <h3 className="font-semibold text-[var(--cream)]">{listing.name}</h3>
-                <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="font-medium" style={{ color: accent || "var(--green-pale)" }}>
-                    ${(listing.price_cents / 100).toFixed(2)}
-                    {listing.unit && <span className="text-[var(--cream-muted)]"> / {listing.unit}</span>}
-                  </span>
-                  <span className="text-[var(--cream-muted)]">{listing.qty_available} available</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <ProductCart
+          listings={listings}
+          sellerSessionIds={allSessionIds}
+          accentColor={accent}
+        />
       </section>
 
       <section>

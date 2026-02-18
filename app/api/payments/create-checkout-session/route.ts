@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 import { getStripe } from "@/lib/stripe";
-
-// ── Types matching the Supabase query shape ────────────────────────────────
+import {
+  getSellerIdForOrder,
+  getProviderForSeller,
+} from "@/lib/payments";
+import type { LineItem } from "@/lib/payments";
 
 type OrderRow = {
   id: string;
@@ -10,6 +13,8 @@ type OrderRow = {
   total_cents: number;
   expires_at: string | null;
   stripe_checkout_session_id: string | null;
+  payment_provider: string | null;
+  payment_session_id: string | null;
   order_items: OrderItemRow[];
 };
 
@@ -21,10 +26,7 @@ type OrderItemRow = {
   listings: { name: string; unit: string | null } | null;
 };
 
-// ── Route handler ──────────────────────────────────────────────────────────
-
 export async function POST(req: NextRequest) {
-  // 0. Parse request body
   let body: { orderId?: string; email?: string };
   try {
     body = (await req.json()) ?? {};
@@ -38,13 +40,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "orderId is required." }, { status: 400 });
   }
 
-  // 1. Load order + order_items (with listing names) via service-role client
   const supabase = createServiceRoleSupabaseClient();
 
   const { data, error: fetchError } = await supabase
     .from("orders")
     .select(
-      "id, status, total_cents, expires_at, stripe_checkout_session_id, order_items(id, quantity, unit_price_cents, line_total_cents, listings(name, unit))"
+      "id, status, total_cents, expires_at, stripe_checkout_session_id, payment_provider, payment_session_id, order_items(id, quantity, unit_price_cents, line_total_cents, listings(name, unit))"
     )
     .eq("id", orderId)
     .single();
@@ -58,7 +59,6 @@ export async function POST(req: NextRequest) {
 
   const order = data as unknown as OrderRow;
 
-  // 2. Validate order state
   if (order.status !== "PENDING_PAYMENT") {
     return NextResponse.json(
       { error: `Order is not awaiting payment (status: ${order.status}).` },
@@ -80,9 +80,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // If a Stripe session was already created for this order, return the existing URL
-  // so we don't create duplicate sessions.
-  if (order.stripe_checkout_session_id) {
+  // If a checkout session was already created, try to reuse it
+  if (order.stripe_checkout_session_id && (!order.payment_provider || order.payment_provider === "stripe" || order.payment_provider === "platform")) {
     try {
       const stripe = getStripe();
       const existingSession = await stripe.checkout.sessions.retrieve(
@@ -92,60 +91,72 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ url: existingSession.url });
       }
     } catch {
-      // Session may have expired or been invalidated — fall through and create a new one.
+      // Session may have expired — fall through and create a new one
     }
   }
 
-  // 3. Build Stripe line_items from order_items
-  const lineItems = order.order_items.map((item) => ({
-    price_data: {
-      currency: "aud",
-      unit_amount: item.unit_price_cents,
-      product_data: {
-        name: item.listings?.name ?? "Market item",
-      },
-    },
+  // If a Square payment session already exists, return its URL
+  if (order.payment_session_id && order.payment_provider === "square") {
+    // Square payment links don't expire the same way, but we create fresh if needed
+  }
+
+  // Determine which payment provider to use based on the seller's settings
+  const sellerId = await getSellerIdForOrder(orderId);
+
+  if (!sellerId) {
+    return NextResponse.json(
+      { error: "Could not determine seller for this order." },
+      { status: 500 }
+    );
+  }
+
+  const provider = await getProviderForSeller(sellerId);
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+  const lineItems: LineItem[] = order.order_items.map((item) => ({
+    name: item.listings?.name ?? "Market item",
+    unitPriceCents: item.unit_price_cents,
     quantity: item.quantity,
   }));
 
-  // 4. Create Stripe Checkout Session
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
   try {
-    const stripe = getStripe();
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      line_items: lineItems,
-      metadata: { orderId },
-      ...(email ? { customer_email: email } : {}),
-      success_url: `${siteUrl}/pay/success?orderId=${orderId}`,
-      cancel_url: `${siteUrl}/pay/${orderId}`,
-      // Give the buyer until the order reservation expires (minimum 30 min for Stripe).
-      ...(order.expires_at
-        ? { expires_at: Math.max(
-            Math.floor(new Date(order.expires_at).getTime() / 1000),
-            Math.floor(Date.now() / 1000) + 30 * 60 // Stripe minimum 30 min
-          )}
-        : {}),
+    const result = await provider.createCheckoutSession({
+      orderId,
+      totalCents: order.total_cents,
+      currency: "aud",
+      lineItems,
+      successUrl: `${siteUrl}/pay/success?orderId=${orderId}`,
+      cancelUrl: `${siteUrl}/pay/${orderId}`,
+      email,
+      expiresAt: order.expires_at ?? undefined,
     });
 
-    // 5. Save stripe_checkout_session_id on the order
+    // Save provider info and session ID on the order
+    const updatePayload: Record<string, unknown> = {
+      payment_provider: provider.providerType === "stripe" ? "stripe" : provider.providerType,
+      payment_session_id: result.sessionId,
+    };
+
+    // Also store in Stripe-specific column for backwards compatibility
+    if (provider.providerType === "stripe") {
+      updatePayload.stripe_checkout_session_id = result.sessionId;
+    }
+
     const { error: updateError } = await supabase
       .from("orders")
-      .update({ stripe_checkout_session_id: session.id })
+      .update(updatePayload)
       .eq("id", orderId);
 
     if (updateError) {
-      console.error("Failed to save stripe_checkout_session_id:", updateError.message);
-      // Non-fatal: the session was created — the buyer can still pay. We'll
-      // reconcile via the webhook if needed.
+      console.error("Failed to save payment session on order:", updateError.message);
     }
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: result.redirectUrl });
   } catch (err: unknown) {
-    console.error("Stripe checkout session creation failed:", err);
+    console.error("Checkout session creation failed:", err);
     const message =
-      err instanceof Error ? err.message : "Failed to create Stripe checkout session.";
+      err instanceof Error ? err.message : "Failed to create checkout session.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

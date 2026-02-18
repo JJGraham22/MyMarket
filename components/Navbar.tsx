@@ -171,7 +171,15 @@ export function Navbar({ user }: NavbarProps) {
                     role="menuitem"
                     onClick={() => setDropdownOpen(false)}
                   >
-                    Settings / Profile
+                    Profile
+                  </Link>
+                  <Link
+                    href="/settings/payments"
+                    className="block px-4 py-2.5 text-sm text-white/90 transition-colors hover:bg-white/10"
+                    role="menuitem"
+                    onClick={() => setDropdownOpen(false)}
+                  >
+                    Payments (Stripe / Square)
                   </Link>
                   <div className="border-t border-white/10" />
                   <button

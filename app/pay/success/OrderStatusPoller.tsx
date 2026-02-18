@@ -25,11 +25,12 @@ export function OrderStatusPoller({
 
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 10; // ~20 seconds at 2s intervals
+    const maxAttempts = 8; // ~24 seconds with 3s interval (after initial fetch)
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    const interval = setInterval(async () => {
+    async function checkStatus() {
+      if (cancelled) return;
       attempts++;
-
       try {
         const res = await fetch(`/api/orders/status?orderId=${orderId}`);
         if (res.ok) {
@@ -38,23 +39,28 @@ export function OrderStatusPoller({
             setStatus(data.status);
             if (data.status !== "PENDING_PAYMENT") {
               setPolling(false);
-              clearInterval(interval);
+              if (intervalId) clearInterval(intervalId);
+              return;
             }
           }
         }
       } catch {
         // Network error — keep polling
       }
-
       if (attempts >= maxAttempts && !cancelled) {
         setPolling(false);
-        clearInterval(interval);
+        if (intervalId) clearInterval(intervalId);
       }
-    }, 2000);
+    }
+
+    // First check immediately (catches server-side sync from success page)
+    void checkStatus();
+
+    intervalId = setInterval(checkStatus, 3000);
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (intervalId) clearInterval(intervalId);
     };
   }, [orderId, polling]);
 

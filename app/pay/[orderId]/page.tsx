@@ -1,5 +1,6 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
-import { PayNowButton } from "./PayNowButton";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { PaymentOptions } from "./PaymentOptions";
 
 type OrderRow = {
   id: string;
@@ -7,6 +8,12 @@ type OrderRow = {
   total_cents: number;
   expires_at: string | null;
   created_at: string;
+  payment_provider: string | null;
+  customer_id: string | null;
+  seller_session_id: string;
+  seller_sessions: {
+    seller_id: string;
+  } | null;
   order_items: {
     id: string;
     quantity: number;
@@ -22,16 +29,20 @@ type OrderRow = {
 export default async function PayOrderPage({
   params
 }: {
-  params: { orderId: string };
+  params: Promise<{ orderId: string }> | { orderId: string };
 }) {
+  // Handle params as Promise (Next.js 14+) or direct object
+  const resolvedParams = await Promise.resolve(params);
+  const orderId = resolvedParams.orderId;
+
   const supabase = createServiceRoleSupabaseClient();
 
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, status, total_cents, expires_at, created_at, order_items(id, quantity, unit_price_cents, line_total_cents, listings(name, unit))"
+      "id, status, total_cents, expires_at, created_at, payment_provider, customer_id, seller_session_id, seller_sessions(seller_id), order_items(id, quantity, unit_price_cents, line_total_cents, listings(name, unit))"
     )
-    .eq("id", params.orderId)
+    .eq("id", orderId)
     .single();
 
   if (error || !data) {
@@ -42,15 +53,59 @@ export default async function PayOrderPage({
           We could not find an order for this link. Please check with the seller and try scanning
           the QR code again.
         </p>
+        {error && (
+          <p className="text-xs text-red-400 mt-2">
+            Error: {error.message}
+          </p>
+        )}
       </main>
     );
   }
 
   const order = data as unknown as OrderRow;
+  
+  // Validate order has required fields
+  if (!order?.id || typeof order?.total_cents !== "number" || !order?.status) {
+    return (
+      <main className="space-y-4">
+        <h1 className="text-2xl font-semibold text-slate-50">Invalid order data</h1>
+        <p className="text-sm text-slate-400">
+          The order data is incomplete. Please contact support.
+        </p>
+      </main>
+    );
+  }
   const now = new Date();
   const expiresAt = order.expires_at ? new Date(order.expires_at) : null;
   const isExpired =
     order.status === "EXPIRED" || (expiresAt !== null && expiresAt.getTime() < now.getTime());
+  
+  // Ensure order_items is an array (Supabase may return null)
+  const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
+
+  // Determine if this is a buyer-initiated order (from seller profile/market page) vs seller-initiated (from seller checkout)
+  // Buyer-initiated orders: have a customer_id set (logged in buyer) OR customer_id is null (guest checkout)
+  // Seller-initiated orders: created by seller at their stall, customer_id is null or seller's own ID
+  const sellerId = order.seller_sessions?.seller_id ?? null;
+  
+  // Check if current user is the seller
+  const supabaseServer = await createServerSupabaseClient();
+  const { data: { user } } = await supabaseServer.auth.getUser();
+  const isCurrentUserSeller = user?.id === sellerId;
+  
+  // Order is buyer-initiated if:
+  // - customer_id is set AND it's not the seller's own ID (buyer ordered from profile/market)
+  // - OR customer_id is null AND current user is NOT the seller (guest checkout)
+  // Order is seller-initiated if:
+  // - customer_id is null AND current user IS the seller (seller at stall)
+  // - OR customer_id equals seller_id (seller ordering for themselves)
+  const isBuyerInitiated = order.customer_id !== null && order.customer_id !== sellerId;
+  const isGuestCheckout = order.customer_id === null && !isCurrentUserSeller;
+  const isSellerCheckout = isCurrentUserSeller && (order.customer_id === null || order.customer_id === sellerId);
+
+  // Only show cash payment for seller checkout (seller at their stall)
+  // Never show cash for buyer-initiated orders or guest checkout
+  const showCashPayment = isSellerCheckout;
 
   return (
     <main className="space-y-6">
@@ -62,8 +117,9 @@ export default async function PayOrderPage({
           Order payment link
         </h1>
         <p className="max-w-xl text-sm text-slate-400">
-          Review the items in your order and confirm payment with the seller at their stall. This
-          link is private to you and may expire shortly after creation.
+          {isBuyerInitiated && !isCurrentUserSeller
+            ? "Review the items in your order and complete payment online. This link is private to you and may expire shortly after creation."
+            : "Review the items in your order and confirm payment with the seller at their stall. This link is private to you and may expire shortly after creation."}
         </p>
       </header>
 
@@ -91,7 +147,7 @@ export default async function PayOrderPage({
           <div className="text-right">
             <p className="text-xs text-slate-400">Total due</p>
             <p className="text-2xl font-semibold text-emerald-300">
-              ${(order.total_cents / 100).toFixed(2)}
+              ${((order.total_cents ?? 0) / 100).toFixed(2)}
             </p>
             {expiresAt && (
               <p className="mt-1 text-[0.7rem] text-slate-400">
@@ -119,28 +175,36 @@ export default async function PayOrderPage({
               </tr>
             </thead>
             <tbody>
-              {order.order_items.map((item) => (
-                <tr
-                  key={item.id}
-                  className="border-t border-slate-800/70 hover:bg-slate-900/60"
-                >
-                  <td className="px-3 py-2 text-xs sm:text-sm">
-                    {item.listings?.name ?? "Item"}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-slate-400">
-                    {item.listings?.unit ?? "each"}
-                  </td>
-                  <td className="px-3 py-2 text-right text-xs sm:text-sm">
-                    {item.quantity}
-                  </td>
-                  <td className="px-3 py-2 text-right text-xs sm:text-sm">
-                    ${(item.unit_price_cents / 100).toFixed(2)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-xs sm:text-sm">
-                    ${(item.line_total_cents / 100).toFixed(2)}
+              {orderItems.length > 0 ? (
+                orderItems.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-t border-slate-800/70 hover:bg-slate-900/60"
+                  >
+                    <td className="px-3 py-2 text-xs sm:text-sm">
+                      {item.listings?.name ?? "Item"}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-slate-400">
+                      {item.listings?.unit ?? "each"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs sm:text-sm">
+                      {item.quantity}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs sm:text-sm">
+                      ${((item.unit_price_cents ?? 0) / 100).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs sm:text-sm">
+                      ${((item.line_total_cents ?? 0) / 100).toFixed(2)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-3 py-4 text-center text-sm text-slate-400">
+                    No items in this order.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -153,15 +217,13 @@ export default async function PayOrderPage({
         )}
 
         {!isExpired && order.status === "PENDING_PAYMENT" && (
-          <div className="space-y-3">
-            <PayNowButton
-              orderId={order.id}
-              disabled={false}
-            />
-            <p className="text-[0.7rem] text-slate-400">
-              You&apos;ll be redirected to a secure Stripe checkout page to complete payment.
-            </p>
-          </div>
+          <PaymentOptions
+            orderId={order.id}
+            totalCents={order.total_cents}
+            paymentProvider={order.payment_provider ?? null}
+            buyerInitiated={isBuyerInitiated || isGuestCheckout}
+            showCashPayment={showCashPayment}
+          />
         )}
 
         {order.status === "PAID" && (
@@ -171,10 +233,9 @@ export default async function PayOrderPage({
         )}
 
         {!isExpired && order.status !== "PENDING_PAYMENT" && order.status !== "PAID" && (
-          <PayNowButton
-            orderId={order.id}
-            disabled={true}
-          />
+          <p className="text-xs text-slate-400">
+            This order is {order.status.toLowerCase()}. Please contact the seller if you need assistance.
+          </p>
         )}
       </section>
     </main>

@@ -1,5 +1,10 @@
 import Link from "next/link";
 
+const settingsNav = [
+  { href: "/settings/profile", label: "Profile" },
+  { href: "/settings/payments", label: "Payments" },
+];
+
 export default function SettingsLayout({
   children,
 }: {
@@ -13,6 +18,19 @@ export default function SettingsLayout({
       >
         &larr; Back to dashboard
       </Link>
+
+      <nav className="flex gap-2">
+        {settingsNav.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--cream-muted)] transition-colors hover:bg-[var(--brown-bg)] hover:text-[var(--cream)]"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
       {children}
     </div>
   );

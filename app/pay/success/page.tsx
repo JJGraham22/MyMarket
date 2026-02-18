@@ -1,4 +1,5 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
+import { confirmSquarePaymentIfPaid } from "@/lib/squareConfirmPayment";
 import { OrderStatusPoller } from "./OrderStatusPoller";
 import Link from "next/link";
 
@@ -7,6 +8,8 @@ type OrderRow = {
   status: string;
   total_cents: number;
   paid_at: string | null;
+  payment_provider?: string | null;
+  payment_session_id?: string | null;
 };
 
 export default async function PaySuccessPage({
@@ -27,13 +30,26 @@ export default async function PaySuccessPage({
     );
   }
 
-  // Load the order so we can show initial state and pass to the poller
   const supabase = createServiceRoleSupabaseClient();
-  const { data } = await supabase
+
+  // Load order (include payment_provider and payment_session_id for Square sync)
+  let { data } = await supabase
     .from("orders")
-    .select("id, status, total_cents, paid_at")
+    .select("id, status, total_cents, paid_at, payment_provider, payment_session_id")
     .eq("id", orderId)
     .single();
+
+  // If Square and still PENDING_PAYMENT, confirm with Square API (webhook may not have run on localhost)
+  const row = data as unknown as OrderRow | null;
+  if (row?.status === "PENDING_PAYMENT" && row?.payment_provider === "square" && row?.payment_session_id) {
+    await confirmSquarePaymentIfPaid(orderId);
+    const refetch = await supabase
+      .from("orders")
+      .select("id, status, total_cents, paid_at")
+      .eq("id", orderId)
+      .single();
+    data = refetch.data;
+  }
 
   const order = data as unknown as OrderRow | null;
 

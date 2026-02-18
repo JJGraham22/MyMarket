@@ -1,0 +1,32 @@
+═══════════════════════════════════════════════════════
+SQUARE CONSOLE REDIRECT URI
+═══════════════════════════════════════════════════════
+
+Copy this EXACT URL and paste it into Square Developer Console:
+
+http://localhost:3000/api/auth/square/callback
+
+═══════════════════════════════════════════════════════
+HOW TO ADD IT:
+═══════════════════════════════════════════════════════
+
+1. Go to: https://developer.squareup.com/apps
+2. Select your application
+3. Make sure you're in SANDBOX mode (top right)
+4. Click "OAuth" in the left sidebar
+5. In "Redirect URLs" section, click "Update" or "Add"
+6. Paste this EXACT URL:
+   http://localhost:3000/api/auth/square/callback
+7. Click "Save" or "Confirm"
+
+═══════════════════════════════════════════════════════
+IMPORTANT NOTES:
+═══════════════════════════════════════════════════════
+
+✓ Must be EXACTLY this URL (no trailing slash, no spaces)
+✓ Must use HTTP (not HTTPS) for localhost
+✓ Must include the full path: /api/auth/square/callback
+✓ Make sure your Next.js dev server is running on port 3000
+✓ Square allows HTTP for localhost in sandbox mode
+
+═══════════════════════════════════════════════════════

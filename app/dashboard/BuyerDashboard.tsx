@@ -69,8 +69,8 @@ export function BuyerDashboard({
           .select("seller_id, profiles(id, display_name)")
           .eq("user_id", userId),
       ]);
-      setSavedMarkets((marketsRes.data ?? []) as SavedMarket[]);
-      setSavedSellers((sellersRes.data ?? []) as SavedSeller[]);
+      setSavedMarkets((marketsRes.data ?? []) as unknown as SavedMarket[]);
+      setSavedSellers((sellersRes.data ?? []) as unknown as SavedSeller[]);
       setSavedLoading(false);
     }
     fetchSaved();

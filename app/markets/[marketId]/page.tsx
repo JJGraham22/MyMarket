@@ -2,6 +2,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SaveMarketButton } from "@/app/components/SaveMarketButton";
+import { SellerOrderCard } from "./SellerOrderCard";
 
 interface MarketDetailProps {
   params: { marketId: string };
@@ -56,42 +57,120 @@ export default async function MarketDetailPage({ params }: MarketDetailProps) {
     notFound();
   }
 
-  // 2. Fetch upcoming market days
+  // 2. Fetch market days (today and future, plus recent past for completeness)
   const today = new Date().toISOString().slice(0, 10);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0, 10);
+  
+  // Fetch today and future market days, plus recent past (last 7 days) to show current sellers
   const { data: marketDays } = await supabase
     .from("market_days")
     .select("id, date, status")
     .eq("market_id", params.marketId)
-    .gte("date", today)
+    .gte("date", sevenDaysAgoStr) // Include last 7 days to today and future
     .order("date", { ascending: true })
-    .limit(10);
+    .limit(20);
 
-  // 3. Find today's market day (if any)
+  // 3. Find today's market day (if any) and get all market day IDs (recent past, today, and future)
   const todayMarketDay = marketDays?.find((d) => d.date === today) ?? null;
+  const allMarketDayIds = marketDays?.map((d) => d.id) ?? [];
 
-  // 4. Fetch seller sessions for today's market day, joined with profiles & listings
+  // 4. Fetch seller sessions for ALL market days (recent past, today, and future), joined with profiles
   let sellerSessions: SellerSession[] = [];
+  const sellerSessionsMap = new Map<string, SellerSession>(); // Deduplicate by seller_id
 
-  if (todayMarketDay) {
-    const { data } = await supabase
+  if (allMarketDayIds.length > 0) {
+    // First, fetch seller sessions
+    const { data: sessionData } = await supabase
       .from("seller_sessions")
-      .select(
-        `id, seller_id, stall_number, notes,
-         profiles:seller_id ( display_name, avatar_url, role ),
-         listings ( id, name, price_cents, unit, qty_available, is_active )`
-      )
-      .eq("market_day_id", todayMarketDay.id);
+      .select("id, seller_id, stall_number, notes, market_day_id")
+      .in("market_day_id", allMarketDayIds);
 
-    if (data) {
-      sellerSessions = (data as unknown as SellerSession[]).map((s) => ({
-        ...s,
-        // Supabase may return profile as object or array; normalise
-        profile: Array.isArray(s.profile) ? s.profile[0] ?? null : s.profile,
-        // Only active listings with stock, limit preview to 5
-        listings: (s.listings ?? [])
-          .filter((l) => l.is_active && l.qty_available > 0)
-          .slice(0, 5),
-      }));
+    if (sessionData && sessionData.length > 0) {
+      // Get unique seller IDs and session IDs
+      const sellerIds = Array.from(new Set((sessionData as any[]).map((s) => s.seller_id)));
+      const sessionIds = (sessionData as any[]).map((s) => s.id);
+
+      // Fetch profiles separately for all sellers
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url, role")
+        .in("id", sellerIds);
+
+      // Create a map of seller_id -> profile
+      const profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null; role: string }>();
+      (profilesData ?? []).forEach((p: any) => {
+        profilesMap.set(p.id, {
+          display_name: p.display_name,
+          avatar_url: p.avatar_url,
+          role: p.role,
+        });
+      });
+
+      // Fetch all listings for these sessions
+      let allListings: Array<{
+        id: string;
+        name: string;
+        price_cents: number;
+        unit: string | null;
+        qty_available: number;
+        is_active: boolean;
+        seller_session_id: string;
+      }> = [];
+
+      if (sessionIds.length > 0) {
+        const { data: listingsData } = await supabase
+          .from("listings")
+          .select("id, name, price_cents, unit, qty_available, is_active, seller_session_id")
+          .in("seller_session_id", sessionIds)
+          .eq("is_active", true);
+
+        allListings = (listingsData ?? []) as typeof allListings;
+      }
+
+      // Group listings by session ID
+      const listingsBySessionId = new Map<string, typeof allListings>();
+      allListings.forEach((listing) => {
+        const sessionId = listing.seller_session_id;
+        if (!listingsBySessionId.has(sessionId)) {
+          listingsBySessionId.set(sessionId, []);
+        }
+        listingsBySessionId.get(sessionId)!.push(listing);
+      });
+
+      // Process all sessions and deduplicate sellers (keep the most recent session per seller)
+      (sessionData as any[]).forEach((s) => {
+        const existing = sellerSessionsMap.get(s.seller_id);
+        const sessionListings = listingsBySessionId.get(s.id) ?? [];
+        const profile = profilesMap.get(s.seller_id) ?? null;
+        
+        if (!existing || (s.id && (!existing.id || s.id > existing.id))) {
+          sellerSessionsMap.set(s.seller_id, {
+            id: s.id,
+            seller_id: s.seller_id,
+            stall_number: s.stall_number,
+            notes: s.notes,
+            profile: profile,
+            // Show all active listings (even with 0 stock), limit preview to 10
+            listings: sessionListings.slice(0, 10),
+          });
+        } else {
+          // Merge listings from multiple sessions for the same seller
+          const existingListings = existing.listings ?? [];
+          const mergedListings = [...existingListings, ...sessionListings];
+          // Deduplicate by listing id and limit to 10
+          const uniqueListings = Array.from(
+            new Map(mergedListings.map((l) => [l.id, l])).values()
+          ).slice(0, 10);
+          sellerSessionsMap.set(s.seller_id, {
+            ...existing,
+            listings: uniqueListings,
+          });
+        }
+      });
+
+      sellerSessions = Array.from(sellerSessionsMap.values());
     }
   }
 
@@ -155,15 +234,17 @@ export default async function MarketDetailPage({ params }: MarketDetailProps) {
 
       <section>
         <h2 className="section-heading mb-4">
-          {todayMarketDay ? "Sellers at today\u2019s market" : "Sellers"}
+          {todayMarketDay ? "Sellers at today\u2019s market" : sellerSessions.length > 0 ? "Sellers at upcoming markets" : "Sellers"}
         </h2>
-        {!todayMarketDay ? (
+        {sellerSessions.length === 0 && allMarketDayIds.length === 0 ? (
           <div className="card-organic px-6 py-10 text-center">
-            <p className="text-sm text-[var(--cream-muted)]">No market day today. Check back on the next scheduled date.</p>
+            <p className="text-sm text-[var(--cream-muted)]">No market days scheduled for this market.</p>
           </div>
         ) : sellerSessions.length === 0 ? (
           <div className="card-organic px-6 py-10 text-center">
-            <p className="text-sm text-[var(--cream-muted)]">No sellers have registered for today yet.</p>
+            <p className="text-sm text-[var(--cream-muted)]">
+              No sellers have registered for this market yet. {todayMarketDay ? "Check back later or sellers may register soon." : "Sellers will appear here when they register for upcoming market days."}
+            </p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
@@ -171,34 +252,15 @@ export default async function MarketDetailPage({ params }: MarketDetailProps) {
               const name = session.profile?.display_name ?? "Unknown Seller";
               const initials = name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
               return (
-                <Link
+                <SellerOrderCard
                   key={session.id}
-                  href={`/sellers/${session.seller_id}`}
-                  className="card-organic group p-5 transition-colors hover:border-[var(--green-soft)]/30"
-                >
-                  <div className="mb-3 flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: "var(--green-bg)", color: "var(--green-pale)" }}>
-                      {initials}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-semibold text-[var(--cream)] group-hover:text-[var(--green-pale)]">{name}</h3>
-                      {session.stall_number && <p className="text-xs text-[var(--cream-muted)]">Stall {session.stall_number}</p>}
-                    </div>
-                  </div>
-                  {session.listings.length > 0 ? (
-                    <ul className="space-y-1">
-                      {session.listings.map((listing) => (
-                        <li key={listing.id} className="flex items-center justify-between text-xs">
-                          <span className="truncate text-[var(--cream-muted)]">{listing.name}{listing.unit && ` / ${listing.unit}`}</span>
-                          <span className="ml-2 shrink-0" style={{ color: "var(--green-pale)" }}>${(listing.price_cents / 100).toFixed(2)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-[var(--cream-muted)]">No listings yet</p>
-                  )}
-                  <span className="mt-3 block text-sm font-medium" style={{ color: "var(--green-pale)" }}>View seller &rarr;</span>
-                </Link>
+                  sellerId={session.seller_id}
+                  sellerName={name}
+                  sellerInitials={initials}
+                  stallNumber={session.stall_number}
+                  listings={session.listings}
+                  sessionId={session.id}
+                />
               );
             })}
           </div>
