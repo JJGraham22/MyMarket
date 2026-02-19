@@ -2,6 +2,7 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/Navbar";
+import { AppUrlHandler } from "@/app/components/AppUrlHandler";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="en">
       <body className="min-h-screen" style={{ background: "var(--ground)", color: "var(--cream)" }}>
         <Navbar user={navUser} />
+        <AppUrlHandler />
         <main className="container py-12 sm:py-16" style={{ background: "var(--ground)", color: "var(--cream)" }}>
           {children}
         </main>
