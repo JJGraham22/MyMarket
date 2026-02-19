@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "My Market",
-  description: "Local farmers market — seller checkout, QR payments, and more"
+  description: "Find local farmers markets and fresh produce near you.",
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -18,12 +18,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang="en">
-      <body className="min-h-screen" style={{ background: "var(--ground)", color: "var(--cream)" }}>
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body>
         <Navbar user={navUser} />
         <AppUrlHandler />
-        <main className="container py-12 sm:py-16" style={{ background: "var(--ground)", color: "var(--cream)" }}>
-          {children}
-        </main>
+        <main>{children}</main>
       </body>
     </html>
   );

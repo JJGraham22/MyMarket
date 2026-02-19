@@ -10,36 +10,23 @@ interface CardProps {
   as?: "div" | "section" | "article";
 }
 
-const paddingMap = {
-  none: "p-0",
-  sm: "p-4",
-  md: "p-6",
-  lg: "p-8",
-};
+const paddingMap = { none: "p-0", sm: "p-4", md: "p-6", lg: "p-8" };
 
-export function Card({
-  children,
-  variant = "default",
-  padding = "md",
-  className = "",
-  as: Component = "div",
-}: CardProps) {
-  const base = "rounded-xl border bg-[var(--ground-elevated)]";
+export function Card({ children, variant = "default", padding = "md", className = "", as: Component = "div" }: CardProps) {
+  const base = "rounded-2xl";
   const variants = {
-    default: "border-[rgba(168,137,104,0.2)]",
-    clickable:
-      "card-btn border-2 border-[var(--green-soft)] cursor-pointer transition-all",
-    bordered: "border-[rgba(168,137,104,0.25)]",
+    default:   "card",
+    clickable: "card card-btn",
+    bordered:  "card",
   };
-  const classes = `${base} ${variants[variant]} ${paddingMap[padding]} ${className}`.trim();
-  return <Component className={classes}>{children}</Component>;
+  return (
+    <Component className={`${base} ${variants[variant]} ${paddingMap[padding]} ${className}`.trim()}>
+      {children}
+    </Component>
+  );
 }
 
-interface CardCTAProps {
-  children: ReactNode;
-  className?: string;
-}
-
+interface CardCTAProps { children: ReactNode; className?: string; }
 export function CardCTA({ children, className = "" }: CardCTAProps) {
   return (
     <span className={`card-btn-cta mt-4 inline-flex ${className}`.trim()}>

@@ -4,21 +4,25 @@ interface PageHeaderProps {
   title: string;
   subtitle?: string;
   label?: string;
-  className?: string;
   children?: ReactNode;
+  light?: boolean;
 }
 
-export function PageHeader({ title, subtitle, label, className = "", children }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, label, children, light = false }: PageHeaderProps) {
   return (
-    <header className={"space-y-3 " + (className || "").trim()} aria-label="Page header">
-      {label ? (
-        <p className="text-sm font-medium uppercase tracking-wider" style={{ color: "var(--market-red)" }}>
+    <div className="space-y-2">
+      {label && (
+        <p style={{
+          color: light ? "rgba(255,255,255,0.7)" : "var(--forest)",
+          fontWeight: 600, fontSize: "0.8125rem",
+          letterSpacing: "0.1em", textTransform: "uppercase",
+        }}>
           {label}
         </p>
-      ) : null}
-      <h1 className="page-heading">{title}</h1>
-      {subtitle ? <p className="page-subheading">{subtitle}</p> : null}
+      )}
+      <h1 className={light ? "page-heading-light" : "page-heading"}>{title}</h1>
+      {subtitle && <p className="page-subheading" style={{ color: light ? "rgba(255,255,255,0.65)" : undefined }}>{subtitle}</p>}
       {children}
-    </header>
+    </div>
   );
 }
